@@ -1,3 +1,11 @@
+/*
+ *
+ *    Boss/worker Model with a Thread pool using shared_ptr based on Boost C++ Libraries 1.57.0
+ *
+ *    Written by EuiJong Hwang
+ *
+ */
+
 #include <boost/thread.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/thread/mutex.hpp>
