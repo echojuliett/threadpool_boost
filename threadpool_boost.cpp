@@ -185,7 +185,7 @@ int CheckArgs(int args, char** argv) {
 			return 0;
 		}
 	}
-	std::cout << "\nusage: ./threadpool [Queue Size] [Thread Count] // MAX_QUEUE_SIZE == 20, MAX_POOL_SIZE == 10\n" << std::endl;
+	std::cout << "\nusage: ./pool [Queue Size] [Thread Count] // MAX_QUEUE_SIZE == 20, MAX_POOL_SIZE == 10\n" << std::endl;
 	return -1;
 }
 
