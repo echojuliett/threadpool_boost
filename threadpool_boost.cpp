@@ -45,11 +45,11 @@ class ThreadPool
 		std::vector<ThreadSharedPtr> worker_threads;
 };
 
-bool sig_int = false; // SIGINT FLAG
+bool SIGINT_FLAG = false;
 
 /* SIGINT Handler */
 void SignalHandler(int sig_value) {
-	sig_int = true;
+	SIGINT_FLAG = true;
 }
 
 /* Task Queue Constructor */
@@ -95,7 +95,7 @@ void TaskQueue::GetPacketData() {
 		cond.wait(lock);
 
 		/* if the SIGINT event occurs, all worker threads exit the loop */
-		if (sig_int) {
+		if (SIGINT_FLAG) {
 			lock.unlock();
 			break;
 		}
@@ -113,6 +113,8 @@ void TaskQueue::GetPacketData() {
 void TaskQueue::ListeningTaskQueue() {
 
 	std::string msg = "Boss";
+	
+	signal(SIGINT, SignalHandler);
 
 	while (true) {
 
@@ -120,7 +122,7 @@ void TaskQueue::ListeningTaskQueue() {
 		std::cout << msg << ": lock" << std::endl;
 
 		/* if the SIGINT event occurs, the Boss wake up all worker threads */
-		if (sig_int) {
+		if (SIGINT_FLAG) {
 			std::cout << msg << ": Listening Queue is stopped..." << std::endl;
 			cond.notify_all();
 
@@ -198,7 +200,6 @@ int main(int args, char** argv) {
 	TaskQueue* taskQueue = new TaskQueue(atoi(argv[1]));
 	ThreadPool* threadPool = new ThreadPool(atoi(argv[2]), taskQueue);
 
-	signal(SIGINT, SignalHandler);
 	taskQueue->ListeningTaskQueue();
 
 	threadPool->Join();
