@@ -24,8 +24,8 @@ class TaskQueue
 		TaskQueue(int queue_size);
 		~TaskQueue();
 		void PopTask();
-		static void StartThread(TaskQueue* taskQueue);
-		void GetPacketData();
+		static void StartThread(TaskQueue* taskQueue); // function executed by worker threads
+		void GetPacketData(); // function called by StartThread function
 		void ListeningTaskQueue();
 	private:
 		std::list<int> task_queue;
@@ -113,7 +113,7 @@ void TaskQueue::GetPacketData() {
 void TaskQueue::ListeningTaskQueue() {
 
 	std::string msg = "Boss";
-	
+
 	signal(SIGINT, SignalHandler);
 
 	while (true) {
@@ -140,7 +140,7 @@ void TaskQueue::ListeningTaskQueue() {
 			continue;
 		}
 
-		/* Task Queue is not Empty */
+		/* Task Queue is Not Empty */
 		cond.notify_one();
 		std::cout << msg << ": Do Work! & Notify One..." << std::endl;
 
@@ -206,6 +206,6 @@ int main(int args, char** argv) {
 
 	delete taskQueue;
 	delete threadPool;
-
+	
 	return 0;
 }
