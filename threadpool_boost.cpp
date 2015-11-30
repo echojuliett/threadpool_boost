@@ -9,6 +9,8 @@
 #include <boost/thread.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/thread/mutex.hpp>
+#include <boost/random/mersenne_twister.hpp>
+#include <boost/random/uniform_int_distribution.hpp>
 #include <iostream>
 #include <csignal>
 #include <string>
@@ -23,7 +25,8 @@ class TaskQueue
 	public:
 		TaskQueue(int queue_size);
 		~TaskQueue();
-		void PopTask();
+		void PushTask(int i);
+		void PopTask(std::string msg);
 		static void StartThread(TaskQueue* taskQueue); // function executed by worker threads
 		void GetPacketData(); // function called by StartThread function
 		void ListeningTaskQueue();
@@ -47,41 +50,64 @@ class ThreadPool
 
 bool SIGINT_FLAG = false;
 
-/* SIGINT Handler */
+/*
+ * SIGINT Handler
+ */
 void SignalHandler(int sig_value) {
 	SIGINT_FLAG = true;
 }
 
-/* Task Queue Constructor */
+boost::random::mt19937 gen;
+
+/*
+ * Task Queue Constructor
+ */
 TaskQueue::TaskQueue(int queue_size) {
 
 	task_queue.clear();
 
-	for (int i = 0; i < queue_size; i++) {
+	for (int i = 0; i < queue_size; ++i) {
 		task_queue.push_back(i);
 	}
 }
 
-/* Task Queue Destructor */
+/*
+ * Task Queue Destructor
+ */
 TaskQueue::~TaskQueue() {
 
 	task_queue.clear();
 }
 
-/* Pop Task */
-void TaskQueue::PopTask() {
+/*
+ * Push data into Task Queue
+ */
+void TaskQueue::PushTask(int i) {
 
-	std::cout << "task_queue.pop_front(): " << task_queue.front() << std::endl;
+	task_queue.push_back(i);
+}
+
+/*
+ * Pop data from Task Queue
+ */
+void TaskQueue::PopTask(std::string msg) {
+
+	std::cout << msg  << ": task_queue.pop_front(): " << task_queue.front() << std::endl;
+	std::cout << msg << " ID: " << boost::this_thread::get_id() << std::endl;
 	task_queue.pop_front();
 }
 
-/* static Start Thread */
+/*
+ * static Start Thread
+ */
 void TaskQueue::StartThread(TaskQueue* taskQueue) {
 
 	taskQueue->GetPacketData();
 }
 
-/* Get Packet Data */
+/*
+ * Get Packet Data
+ */
 void TaskQueue::GetPacketData() {
 
 	std::string msg = "Worker";
@@ -89,93 +115,101 @@ void TaskQueue::GetPacketData() {
 	while (true) {
 
 		boost::unique_lock<boost::mutex> lock(mutex);
-		std::cout << msg << ": lock" << std::endl;
-
-		std::cout << msg << ": unlock & Wait for Notification...\n" << std::endl;
 		cond.wait(lock);
 
-		/* if the SIGINT event occurs, all worker threads exit the loop */
+		/*
+		 * if the SIGINT event occurs, all worker threads exit the loop
+		 */
 		if (SIGINT_FLAG) {
 			lock.unlock();
 			break;
 		}
 
-		std::cout << msg << ": Receive Notification & lock" << std::endl;
-
-		PopTask(); // Critical Section
-
-		std::cout << msg << ": unlock\n" << std::endl;
+		PopTask(msg); // Critical Section
 		lock.unlock();
 	}
 }
 
-/* Listen Task Queue */
+/*
+ * Listen Task Queue
+ */
 void TaskQueue::ListeningTaskQueue() {
 
 	std::string msg = "Boss";
+	boost::random::mt19937 gen;
+	boost::random::uniform_int_distribution<> dist(0, 9);
 
 	signal(SIGINT, SignalHandler);
 
 	while (true) {
 
 		boost::unique_lock<boost::mutex> lock(mutex);
-		std::cout << msg << ": lock" << std::endl;
 
-		/* if the SIGINT event occurs, the Boss wake up all worker threads */
+		/*
+		 *
+		 * if the SIGINT event occurs, the Boss wake up all worker threads
+		 *
+		 */
 		if (SIGINT_FLAG) {
 			std::cout << msg << ": Listening Queue is stopped..." << std::endl;
 			cond.notify_all();
-
-			std::cout << msg << ": unlock" << std::endl;
 			lock.unlock();
 			break;
 		}
 
 		if (task_queue.empty()) {
 			std::cout << msg << ": Task Queue is Empty..." << std::endl;
-			sleep(1);
+			PushTask(dist(gen));
+			std::cout << msg << ": Push into Task Queue: " << task_queue.back() << std::endl;
+			boost::this_thread::sleep_for(boost::chrono::milliseconds(500));
 
-			std::cout << msg << ": unlock\n" << std::endl;
 			lock.unlock();
 			continue;
 		}
 
-		/* Task Queue is Not Empty */
+		/*
+		 * Task Queue is Not Empty
+		 */
 		cond.notify_one();
-		std::cout << msg << ": Do Work! & Notify One..." << std::endl;
-
-		std::cout << msg << ": unlock\n" << std::endl;
 		lock.unlock();
-		sleep(1);
+		boost::this_thread::sleep_for(boost::chrono::milliseconds(500));
 	}
 }
 
-/* Thread Pool Constructor */
+/*
+ * Thread pool Constructor
+ */
 ThreadPool::ThreadPool(int pool_size, TaskQueue* taskQueue) {
 
 	worker_threads.clear();
 
-	for (int i = 0; i < pool_size; i++) {
+	for (int i = 0; i < pool_size; ++i) {
 		worker_threads.push_back(ThreadSharedPtr(new boost::thread(TaskQueue::StartThread, taskQueue)));
-		sleep(1);
+		boost::this_thread::sleep_for(boost::chrono::milliseconds(500));
 	}
 }
 
-/* Thread Pool Destructor */
+/*
+ * Thread pool Destructor
+ */
 ThreadPool::~ThreadPool() {
 
 	worker_threads.clear();
 }
 
-/* Join Thread */
+/*
+ * Join Thread
+ */
 void ThreadPool::Join() {
 
-	for (int i = 0; i < worker_threads.size(); i++) {
+	for (int i = 0; i < worker_threads.size(); ++i) {
 		worker_threads[i]->join();
 	}
 }
 
-/* Check Arguments */
+/*
+ * Check Arguments
+ */
 int CheckArgs(int args, char** argv) {
 
 	if (args == 3) {
@@ -201,7 +235,6 @@ int main(int args, char** argv) {
 	ThreadPool* threadPool = new ThreadPool(atoi(argv[2]), taskQueue);
 
 	taskQueue->ListeningTaskQueue();
-
 	threadPool->Join();
 
 	delete taskQueue;
